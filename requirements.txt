@@ -1,0 +1,5 @@
+fastapi
+httpx[http2]
+uvicorn[standard]
+azure-identity
+python-dotenv
