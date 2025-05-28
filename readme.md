@@ -1,34 +1,63 @@
 # Azure OpenAI Proxy
 
-项目实现了一个 FastAPI 代理服务，负责管理 Azure AD 认证，转发请求到 Azure OpenAI。
+项目初衷是简化 Azure OpenAI 访问流程，将复杂的 Azure AD 认证封装在代理服务中。用户只需配置环境变量 `AZURE_CLIENT_ID` 和 `AZURE_OPENAI_ENDPOINT`，无需处理复杂认证。客户端通过统一的 `PROXY_URL` 和 `PROXY_API_KEY` 调用，兼容各种不支持 Azure AD 的工具。
 
-## 结构
+---
 
-* `proxy.py`：代理服务主程序
-* `Dockerfile`：构建镜像配置
-* `requirements.txt`：依赖列表
-* `test_*.py`：测试脚本
+## 环境配置
 
-## 配置
+复制示例配置文件并编辑：
 
-环境变量通过 `.env` 文件传入：
+```bash
+cp .env.example .env
+# 编辑 .env 文件，填入你的 AZURE_CLIENT_ID、AZURE_OPENAI_ENDPOINT 和 PROXY_API_KEY
+```
 
-* `AZURE_CLIENT_ID`：Managed Identity Client ID
-* `AZURE_OPENAI_ENDPOINT`：Azure OpenAI 终端地址
-* `PROXY_API_KEY`：自定义的代理服务访问密钥（仅用于代理服务，作为对接第三方服务API_KEY）
+环境变量说明：
 
-## 构建与运行
+* `AZURE_CLIENT_ID` (string，必填)：Managed Identity Client ID
+* `AZURE_OPENAI_ENDPOINT` (string，必填)：Azure OpenAI 服务终端地址，例如 `https://xxx.openai.azure.com`
+* `PROXY_API_KEY` (string，必填)：代理服务访问密钥，客户端调用代理时需携带
+
+---
+
+## 构建与启动
 
 ```bash
 docker build -t azure-openai-proxy .
-docker run -d --name azure-openai-proxy --env-file .env --network [docker_network_name] -p 8787:8787 azure-openai-proxy
+docker run -d --name azure-openai-proxy --env-file .env --network [你的docker网络名称] -p 8787:8787 azure-openai-proxy
 ```
 
-## 使用
+---
 
-请求示例：
+## 使用示例
 
-```http
+Python 客户端示例（详见 `test_sdk.py` 和 `test_chat.py`）：
+
+```python
+from openai import AzureOpenAI
+
+client = AzureOpenAI(
+    azure_endpoint="http://localhost:8787",  # 容器内使用容器名替代 localhost
+    api_version="2025-01-01-preview",
+    api_key="你的代理API_KEY",
+)
+
+messages = [{"role": "user", "content": "中国的首都是哪里？"}]
+
+response = client.chat.completions.create(
+    model="o3",
+    messages=messages,
+)
+
+print("Response:", response.choices[0].message.content)
+```
+
+---
+
+## HTTP 请求示例
+
+```
 POST http://localhost:8787/openai/deployments/o3/chat/completions?api-version=2025-01-01-preview
 Headers:
   api_key: <你的代理API Key>
@@ -40,15 +69,17 @@ Body:
 }
 ```
 
-## 测试
+---
 
-直接运行测试脚本：
+## 测试
 
 ```bash
 python test_chat.py
 python test_proxy.py
 python test_sdk.py
 ```
+
+---
 
 ## 查看日志
 
